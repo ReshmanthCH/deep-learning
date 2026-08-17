@@ -1,0 +1,1170 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    confusion_matrix,
+    classification_report
+)
+
+column_names = [
+    "Variance",
+    "Skewness",
+    "Curtosis",
+    "Entropy",
+    "Class"
+]
+
+df = pd.read_csv(
+    "data_banknote_authentication.txt",
+    header=None,
+    names=column_names
+)
+
+df.head()
+df.shape
+
+df.isnull().sum()
+df.describe()
+df.info()
+df["Class"].value_counts()
+feature_columns = [
+    "Variance",
+    "Skewness",
+    "Curtosis",
+    "Entropy"
+]
+
+df[feature_columns].hist(
+    figsize=(12, 8),
+    bins=20,
+    edgecolor="black"
+)
+
+plt.suptitle("Feature Distributions")
+plt.tight_layout()
+plt.show()
+
+  plt.figure(figsize=(8, 6))
+
+sns.scatterplot(
+    data=df,
+    x="Variance",
+    y="Skewness",
+    hue="Class",
+    palette="Set1"
+)
+
+plt.title("Variance vs Skewness by Class")
+plt.xlabel("Variance")
+plt.ylabel("Skewness")
+plt.show()
+
+# ============================================================
+# TASK 3: DATA PREPROCESSING
+# ============================================================
+
+print("\n" + "=" * 70)
+print("TASK 3: DATA PREPROCESSING")
+print("=" * 70)
+
+# Separate input features and target
+X = df[feature_columns].values
+y = df["Class"].values
+
+print("\nOriginal Feature Matrix Shape:", X.shape)
+print("Target Vector Shape:", y.shape)
+
+
+# ------------------------------------------------------------
+# TRAIN-TEST SPLIT: 80% TRAINING, 20% TESTING
+# ------------------------------------------------------------
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    test_size=0.20,
+    random_state=42,
+    stratify=y
+)
+
+print("\nTraining Samples:", X_train.shape[0])
+print("Testing Samples:", X_test.shape[0])
+
+
+# ------------------------------------------------------------
+# FEATURE NORMALIZATION
+# ------------------------------------------------------------
+
+scaler = StandardScaler()
+
+# Learn mean and standard deviation only from training data
+X_train_scaled = scaler.fit_transform(X_train)
+
+# Apply same transformation to testing data
+X_test_scaled = scaler.transform(X_test)
+
+print("\nFeature Normalization Completed")
+
+print("\nMean of Scaled Training Features:")
+print(np.mean(X_train_scaled, axis=0))
+
+print("\nStandard Deviation of Scaled Training Features:")
+print(np.std(X_train_scaled, axis=0))
+
+# ============================================================
+# TASK 4: SINGLE LAYER PERCEPTRON FROM SCRATCH
+# ============================================================
+
+print("\n" + "=" * 70)
+print("TASK 4: PERCEPTRON IMPLEMENTATION FROM SCRATCH")
+print("=" * 70)
+
+
+class SingleLayerPerceptron:
+
+    def __init__(self, learning_rate=0.01, epochs=50):
+
+        # Learning rate controls update size
+        self.learning_rate = learning_rate
+
+        # Number of complete passes through training dataset
+        self.epochs = epochs
+
+        # Model parameters
+        self.weights = None
+        self.bias = 0.0
+
+        # Store training history
+        self.errors_history = []
+        self.weights_history = []
+        self.bias_history = []
+
+
+    # --------------------------------------------------------
+    # STEP ACTIVATION FUNCTION
+    # --------------------------------------------------------
+
+    def activation(self, z):
+
+        return 1 if z >= 0 else 0
+
+
+    # --------------------------------------------------------
+    # FORWARD PROPAGATION FOR ONE SAMPLE
+    # --------------------------------------------------------
+
+    def predict_one(self, x):
+
+        # Weighted sum:
+        # z = w^T x + b
+        z = np.dot(x, self.weights) + self.bias
+
+        # Apply step activation
+        return self.activation(z)
+
+
+    # --------------------------------------------------------
+    # TRAINING FUNCTION
+    # --------------------------------------------------------
+
+    def fit(self, X, y):
+
+        # Initialize all weights to zero
+        self.weights = np.zeros(X.shape[1])
+
+        # Initialize bias to zero
+        self.bias = 0.0
+
+        # Reset histories
+        self.errors_history = []
+        self.weights_history = []
+        self.bias_history = []
+
+        # Repeat training for given number of epochs
+        for epoch in range(self.epochs):
+
+            misclassified = 0
+
+            # Visit every training sample
+            for xi, target in zip(X, y):
+
+                # Forward propagation
+                prediction = self.predict_one(xi)
+
+                # Calculate error
+                error = target - prediction
+
+                # If prediction is wrong
+                if error != 0:
+
+                    misclassified += 1
+
+                    # Perceptron weight update rule
+                    self.weights += (
+                        self.learning_rate
+                        * error
+                        * xi
+                    )
+
+                    # Bias update rule
+                    self.bias += (
+                        self.learning_rate
+                        * error
+                    )
+
+            # Save epoch information
+            self.errors_history.append(misclassified)
+            self.weights_history.append(self.weights.copy())
+            self.bias_history.append(self.bias)
+
+            # Display required training information
+            print(
+                f"Epoch {epoch + 1:3d} | "
+                f"Misclassified Samples = {misclassified:3d} | "
+                f"Weights = {np.round(self.weights, 4)} | "
+                f"Bias = {self.bias:.4f}"
+            )
+
+        return self
+
+
+    # --------------------------------------------------------
+    # PREDICT MULTIPLE SAMPLES
+    # --------------------------------------------------------
+
+    def predict(self, X):
+
+        predictions = []
+
+        for x in X:
+            prediction = self.predict_one(x)
+            predictions.append(prediction)
+
+        return np.array(predictions)
+
+  # ============================================================
+# TASK 5: MODEL TRAINING
+# ============================================================
+
+print("\n" + "=" * 70)
+print("TASK 5: MODEL TRAINING")
+print("=" * 70)
+
+# Set training parameters
+learning_rate = 0.01
+epochs = 50
+
+# Create the perceptron model
+model = SingleLayerPerceptron(
+    learning_rate=learning_rate,
+    epochs=epochs
+)
+
+# Train the model using normalized training data
+model.fit(
+    X_train_scaled,
+    y_train
+)
+
+# ============================================================
+# TASK 6: MODEL EVALUATION
+# ============================================================
+
+print("\n" + "=" * 70)
+print("TASK 6: MODEL EVALUATION")
+print("=" * 70)
+
+y_pred = model.predict(X_test_scaled)
+
+accuracy = accuracy_score(y_test, y_pred)
+precision = precision_score(y_test, y_pred, zero_division=0)
+recall = recall_score(y_test, y_pred, zero_division=0)
+f1 = f1_score(y_test, y_pred, zero_division=0)
+
+cm = confusion_matrix(y_test, y_pred)
+
+
+print("\nPerformance Metrics")
+
+print(f"Accuracy  : {accuracy:.4f}")
+print(f"Precision : {precision:.4f}")
+print(f"Recall    : {recall:.4f}")
+print(f"F1-score  : {f1:.4f}")
+
+print("\nClassification Report:")
+print(
+    classification_report(
+        y_test,
+        y_pred,
+        zero_division=0
+    )
+)
+
+# ============================================================
+# MANDATORY PLOT 1:
+# TRAINING ERROR VS EPOCH
+# ============================================================
+
+plt.figure(figsize=(9, 5))
+
+plt.plot(
+    range(1, epochs + 1),
+    model.errors_history,
+    marker="o"
+)
+
+plt.title("Training Error vs Epoch")
+plt.xlabel("Epoch")
+plt.ylabel("Misclassified Samples")
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# ============================================================
+# MANDATORY PLOT 2:
+# WEIGHT EVOLUTION
+# ============================================================
+
+weights_history = np.array(
+    model.weights_history
+)
+
+plt.figure(figsize=(10, 6))
+
+for i, feature in enumerate(feature_columns):
+
+    plt.plot(
+        range(1, epochs + 1),
+        weights_history[:, i],
+        label=feature
+    )
+
+plt.title("Weight Evolution During Training")
+plt.xlabel("Epoch")
+plt.ylabel("Weight Value")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# ============================================================
+# MANDATORY PLOT 3:
+# BIAS EVOLUTION
+# ============================================================
+
+plt.figure(figsize=(9, 5))
+
+plt.plot(
+    range(1, epochs + 1),
+    model.bias_history,
+    marker="o"
+)
+
+plt.title("Bias Evolution During Training")
+plt.xlabel("Epoch")
+plt.ylabel("Bias Value")
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# ============================================================
+# LEARNING RATE COMPARISON
+# Required rates: 0.001, 0.01, 0.1
+# ============================================================
+
+print("\n" + "=" * 70)
+print("LEARNING RATE COMPARISON")
+print("=" * 70)
+
+learning_rates = [
+    0.001,
+    0.01,
+    0.1
+]
+
+lr_models = {}
+
+plt.figure(figsize=(10, 6))
+
+for lr in learning_rates:
+
+    print(f"\nTraining with Learning Rate = {lr}")
+
+    temp_model = SingleLayerPerceptron(
+        learning_rate=lr,
+        epochs=epochs
+    )
+
+    temp_model.fit(
+        X_train_scaled,
+        y_train
+    )
+
+    lr_models[lr] = temp_model
+
+    plt.plot(
+        range(1, epochs + 1),
+        temp_model.errors_history,
+        label=f"Learning Rate = {lr}"
+    )
+
+plt.title("Learning Rate Comparison")
+plt.xlabel("Epoch")
+plt.ylabel("Misclassified Samples")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+
+# ============================================================
+# LEARNING RATE PERFORMANCE TABLE
+# ============================================================
+
+lr_results = []
+
+for lr, temp_model in lr_models.items():
+
+    temp_predictions = temp_model.predict(
+        X_test_scaled
+    )
+
+    lr_results.append({
+        "Learning Rate": lr,
+        "Accuracy": accuracy_score(
+            y_test,
+            temp_predictions
+        ),
+        "Precision": precision_score(
+            y_test,
+            temp_predictions,
+            zero_division=0
+        ),
+        "Recall": recall_score(
+            y_test,
+            temp_predictions,
+            zero_division=0
+        ),
+        "F1-score": f1_score(
+            y_test,
+            temp_predictions,
+            zero_division=0
+        ),
+        "Final Training Errors":
+            temp_model.errors_history[-1]
+    })
+
+lr_results_df = pd.DataFrame(lr_results)
+
+print("\nLearning Rate Performance Comparison:")
+print(lr_results_df.to_string(index=False))
+
+# ============================================================
+# PERFORMANCE TABLE 1:
+# TRAINING SUMMARY
+# ============================================================
+
+training_summary = pd.DataFrame({
+    "Parameter": [
+        "Dataset Size",
+        "Train/Test Split",
+        "Training Samples",
+        "Testing Samples",
+        "Learning Rate",
+        "Epochs",
+        "Final Weights",
+        "Final Bias",
+        "Accuracy",
+        "Precision",
+        "Recall",
+        "F1-score"
+    ],
+
+    "Value": [
+        df.shape[0],
+        "80% / 20%",
+        X_train.shape[0],
+        X_test.shape[0],
+        learning_rate,
+        epochs,
+        np.round(model.weights, 4),
+        round(model.bias, 4),
+        round(accuracy, 4),
+        round(precision, 4),
+        round(recall, 4),
+        round(f1, 4)
+    ]
+})
+
+print("\n" + "=" * 70)
+print("TRAINING SUMMARY TABLE")
+print("=" * 70)
+
+print(
+    training_summary.to_string(
+        index=False
+    )
+)
+
+
+# ============================================================
+# PERFORMANCE TABLE 2:
+# EPOCH-WISE LEARNING
+# ============================================================
+
+epoch_wise_table = pd.DataFrame({
+    "Epoch": range(1, epochs + 1),
+
+    "Errors":
+        model.errors_history,
+
+    "Weight 1":
+        weights_history[:, 0],
+
+    "Weight 2":
+        weights_history[:, 1],
+
+    "Weight 3":
+        weights_history[:, 2],
+
+    "Weight 4":
+        weights_history[:, 3],
+
+    "Bias":
+        model.bias_history
+})
+
+print("\n" + "=" * 70)
+print("EPOCH-WISE LEARNING TABLE")
+print("=" * 70)
+
+print(
+    epoch_wise_table.to_string(
+        index=False
+    )
+)
+
+# ============================================================
+# ADDITIONAL TASK 1
+# COMPARE STEP AND SIGMOID ACTIVATION FUNCTIONS
+# ============================================================
+
+print("\n" + "=" * 70)
+print("ADDITIONAL TASK 1: STEP VS SIGMOID ACTIVATION")
+print("=" * 70)
+
+
+# Step Activation Function
+def step_function(z):
+    return np.where(z >= 0, 1, 0)
+
+
+# Sigmoid Activation Function
+def sigmoid_function(z):
+    return 1 / (1 + np.exp(-z))
+
+
+# Generate values from -10 to 10
+z_values = np.linspace(-10, 10, 500)
+
+# Calculate outputs
+step_outputs = step_function(z_values)
+sigmoid_outputs = sigmoid_function(z_values)
+
+
+# Plot Step Function
+plt.figure(figsize=(8, 5))
+
+plt.plot(
+    z_values,
+    step_outputs
+)
+
+plt.title("Step Activation Function")
+plt.xlabel("Input z")
+plt.ylabel("Output")
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+
+# Plot Sigmoid Function
+plt.figure(figsize=(8, 5))
+
+plt.plot(
+    z_values,
+    sigmoid_outputs
+)
+
+plt.title("Sigmoid Activation Function")
+plt.xlabel("Input z")
+plt.ylabel("Output")
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+
+# Comparison Table
+activation_comparison = pd.DataFrame({
+
+    "Property": [
+        "Output Range",
+        "Nature",
+        "Differentiable",
+        "Gradient-based Learning",
+        "Typical Use"
+    ],
+
+    "Step Function": [
+        "{0, 1}",
+        "Abrupt / Discontinuous",
+        "No at z = 0",
+        "Not suitable",
+        "Classical Perceptron"
+    ],
+
+    "Sigmoid Function": [
+        "(0, 1)",
+        "Smooth / Continuous",
+        "Yes",
+        "Suitable",
+        "Binary probability output"
+    ]
+})
+
+print("\nStep vs Sigmoid Comparison:")
+print(activation_comparison.to_string(index=False))
+
+
+print("\nInterpretation:")
+print("""
+The Step activation function gives only two outputs: 0 or 1.
+Its output changes abruptly at z = 0.
+
+The Sigmoid activation function changes smoothly between 0 and 1.
+
+The Step function is not used for gradient-based deep learning
+because it is not differentiable at z = 0 and its derivative is
+zero almost everywhere else. Therefore, it does not provide a useful
+gradient for backpropagation.
+
+Sigmoid is differentiable and can support gradient-based optimization,
+although modern hidden layers often use functions such as ReLU because
+sigmoid can suffer from vanishing gradients.
+""")
+
+
+# ============================================================
+# ADDITIONAL TASK 4
+# WHY A SINGLE LAYER PERCEPTRON CANNOT SOLVE XOR
+# ============================================================
+
+print("\n" + "=" * 70)
+print("ADDITIONAL TASK 4: XOR PROBLEM")
+print("=" * 70)
+
+
+# XOR Input Data
+X_xor = np.array([
+    [0, 0],
+    [0, 1],
+    [1, 0],
+    [1, 1]
+])
+
+
+# XOR Target Output
+y_xor = np.array([
+    0,
+    1,
+    1,
+    0
+])
+
+
+# Display XOR Truth Table
+xor_table = pd.DataFrame({
+
+    "Input X1": X_xor[:, 0],
+    "Input X2": X_xor[:, 1],
+    "XOR Output": y_xor
+})
+
+print("\nXOR Truth Table:")
+print(xor_table.to_string(index=False))
+
+
+# Plot XOR Data
+plt.figure(figsize=(7, 6))
+
+plt.scatter(
+    X_xor[y_xor == 0, 0],
+    X_xor[y_xor == 0, 1],
+    marker="o",
+    s=150,
+    label="Class 0"
+)
+
+plt.scatter(
+    X_xor[y_xor == 1, 0],
+    X_xor[y_xor == 1, 1],
+    marker="x",
+    s=150,
+    label="Class 1"
+)
+
+plt.title("XOR Class Distribution")
+plt.xlabel("X1")
+plt.ylabel("X2")
+plt.xticks([0, 1])
+plt.yticks([0, 1])
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+
+# Train our Single Layer Perceptron on XOR
+xor_model = SingleLayerPerceptron(
+    learning_rate=0.1,
+    epochs=20
+)
+
+xor_model.fit(
+    X_xor,
+    y_xor
+)
+
+
+# XOR Predictions
+xor_predictions = xor_model.predict(X_xor)
+
+
+# Create result table
+xor_results = pd.DataFrame({
+
+    "X1": X_xor[:, 0],
+    "X2": X_xor[:, 1],
+    "Actual Output": y_xor,
+    "Predicted Output": xor_predictions
+})
+
+print("\nXOR Prediction Results:")
+print(xor_results.to_string(index=False))
+
+
+xor_accuracy = accuracy_score(
+    y_xor,
+    xor_predictions
+)
+
+print(
+    "\nXOR Accuracy:",
+    xor_accuracy
+)
+
+
+# Plot XOR Training Errors
+plt.figure(figsize=(8, 5))
+
+plt.plot(
+    range(1, 21),
+    xor_model.errors_history,
+    marker="o"
+)
+
+plt.title("XOR Training Error vs Epoch")
+plt.xlabel("Epoch")
+plt.ylabel("Misclassified Samples")
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+
+print("\nInterpretation:")
+print("""
+XOR is not linearly separable.
+
+Class 0 occurs at:
+(0, 0) and (1, 1)
+
+Class 1 occurs at:
+(0, 1) and (1, 0)
+
+No single straight line can separate these two classes.
+
+A Single Layer Perceptron creates only one linear decision boundary.
+Therefore, it cannot perfectly solve the XOR problem.
+
+A Multilayer Perceptron with hidden neurons can solve XOR by learning
+non-linear combinations of the inputs.
+""")
+
+
+# ============================================================
+# ADDITIONAL TASK 5
+# EFFECT OF FEATURE NORMALIZATION ON MODEL CONVERGENCE
+# ============================================================
+
+print("\n" + "=" * 70)
+print("ADDITIONAL TASK 5: EFFECT OF FEATURE NORMALIZATION")
+print("=" * 70)
+
+
+# ------------------------------------------------------------
+# MODEL A: WITHOUT NORMALIZATION
+# ------------------------------------------------------------
+
+print("\nTraining WITHOUT Normalization")
+
+model_without_normalization = SingleLayerPerceptron(
+    learning_rate=0.01,
+    epochs=50
+)
+
+model_without_normalization.fit(
+    X_train,
+    y_train
+)
+
+
+# Predictions without normalization
+pred_without_normalization = (
+    model_without_normalization.predict(X_test)
+)
+
+
+# Performance without normalization
+accuracy_without = accuracy_score(
+    y_test,
+    pred_without_normalization
+)
+
+precision_without = precision_score(
+    y_test,
+    pred_without_normalization,
+    zero_division=0
+)
+
+recall_without = recall_score(
+    y_test,
+    pred_without_normalization,
+    zero_division=0
+)
+
+f1_without = f1_score(
+    y_test,
+    pred_without_normalization,
+    zero_division=0
+)
+
+
+# ------------------------------------------------------------
+# MODEL B: WITH NORMALIZATION
+# ------------------------------------------------------------
+
+print("\nTraining WITH Normalization")
+
+model_with_normalization = SingleLayerPerceptron(
+    learning_rate=0.01,
+    epochs=50
+)
+
+model_with_normalization.fit(
+    X_train_scaled,
+    y_train
+)
+
+
+# Predictions with normalization
+pred_with_normalization = (
+    model_with_normalization.predict(X_test_scaled)
+)
+
+
+# Performance with normalization
+accuracy_with = accuracy_score(
+    y_test,
+    pred_with_normalization
+)
+
+precision_with = precision_score(
+    y_test,
+    pred_with_normalization,
+    zero_division=0
+)
+
+recall_with = recall_score(
+    y_test,
+    pred_with_normalization,
+    zero_division=0
+)
+
+f1_with = f1_score(
+    y_test,
+    pred_with_normalization,
+    zero_division=0
+)
+
+
+# ------------------------------------------------------------
+# CONVERGENCE COMPARISON GRAPH
+# ------------------------------------------------------------
+
+plt.figure(figsize=(10, 6))
+
+plt.plot(
+    range(1, 51),
+    model_without_normalization.errors_history,
+    label="Without Normalization"
+)
+
+plt.plot(
+    range(1, 51),
+    model_with_normalization.errors_history,
+    label="With Normalization"
+)
+
+plt.title(
+    "Effect of Feature Normalization on Convergence"
+)
+
+plt.xlabel("Epoch")
+plt.ylabel("Misclassified Samples")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+
+# ------------------------------------------------------------
+# PERFORMANCE COMPARISON TABLE
+# ------------------------------------------------------------
+
+normalization_comparison = pd.DataFrame({
+
+    "Model": [
+        "Without Normalization",
+        "With Normalization"
+    ],
+
+    "Accuracy": [
+        accuracy_without,
+        accuracy_with
+    ],
+
+    "Precision": [
+        precision_without,
+        precision_with
+    ],
+
+    "Recall": [
+        recall_without,
+        recall_with
+    ],
+
+    "F1-score": [
+        f1_without,
+        f1_with
+    ],
+
+    "Final Training Errors": [
+        model_without_normalization.errors_history[-1],
+        model_with_normalization.errors_history[-1]
+    ]
+})
+
+
+print("\nNormalization Performance Comparison:")
+
+print(
+    normalization_comparison.to_string(
+        index=False
+    )
+)
+
+
+# ------------------------------------------------------------
+# ADDITIONAL CONVERGENCE SUMMARY
+# ------------------------------------------------------------
+
+avg_errors_without = np.mean(
+    model_without_normalization.errors_history
+)
+
+avg_errors_with = np.mean(
+    model_with_normalization.errors_history
+)
+
+print("\nAverage Misclassified Samples Across Epochs:")
+
+print(
+    "Without Normalization:",
+    round(avg_errors_without, 2)
+)
+
+print(
+    "With Normalization:",
+    round(avg_errors_with, 2)
+)
+
+
+print("\nInterpretation:")
+print("""
+Feature normalization places numerical features on a comparable scale.
+
+Without normalization, features with larger numerical magnitudes can
+produce larger perceptron weight updates because the update rule directly
+contains the input vector x.
+
+With normalization, the features are standardized using the training-set
+statistics. This can make the learning process more stable and can change
+the convergence behaviour.
+
+The final conclusion should be based on the generated error curves and
+performance table. Compare the number of misclassified samples across
+epochs and the final Accuracy, Precision, Recall and F1-score before
+stating whether normalization improved convergence for this run.
+""")
+
+
+# ============================================================
+# FINAL ADDITIONAL TASK STATUS
+# ============================================================
+
+print("\n" + "=" * 70)
+print("ALL ADDITIONAL TASKS COMPLETED")
+print("=" * 70)
+
+print("""
+Additional Task 1:
+Step vs Sigmoid comparison completed.
+
+Additional Task 2:
+Scikit-learn Perceptron comparison already included.
+
+Additional Task 3:
+Learning rates 0.001, 0.01 and 0.1 already compared.
+
+Additional Task 4:
+XOR limitation demonstrated and explained.
+
+Additional Task 5:
+Effect of feature normalization on convergence studied.
+""")
+
+# ============================================================
+# OPTIONAL:
+# COMPARE WITH SCIKIT-LEARN PERCEPTRON
+# ============================================================
+
+print("\n" + "=" * 70)
+print("SCIKIT-LEARN PERCEPTRON COMPARISON")
+print("=" * 70)
+
+# Import the Perceptron class from scikit-learn
+from sklearn.linear_model import Perceptron as SklearnPerceptron
+
+sk_model = SklearnPerceptron(
+    eta0=0.01,
+    max_iter=50,
+    random_state=42
+)
+
+sk_model.fit(
+    X_train_scaled,
+    y_train
+)
+
+sk_pred = sk_model.predict(
+    X_test_scaled
+)
+
+sk_accuracy = accuracy_score(
+    y_test,
+    sk_pred
+)
+
+sk_precision = precision_score(
+    y_test,
+    sk_pred,
+    zero_division=0
+)
+
+sk_recall = recall_score(
+    y_test,
+    sk_pred,
+    zero_division=0
+)
+
+sk_f1 = f1_score(
+    y_test,
+    sk_pred,
+    zero_division=0
+)
+
+
+comparison_table = pd.DataFrame({
+
+    "Model": [
+        "Perceptron From Scratch",
+        "Scikit-learn Perceptron"
+    ],
+
+    "Accuracy": [
+        accuracy,
+        sk_accuracy
+    ],
+
+    "Precision": [
+        precision,
+        sk_precision
+    ],
+
+    "Recall": [
+        recall,
+        sk_recall
+    ],
+
+    "F1-score": [
+        f1,
+        sk_f1
+    ]
+})
+
+print("\nModel Comparison:")
+
+print(
+    comparison_table.to_string(
+        index=False
+    )
+)
+
+
+# ============================================================
+# FINAL RESULTS
+# ============================================================
+
+print("\n" + "=" * 70)
+print("EXPERIMENT COMPLETED SUCCESSFULLY")
+print("=" * 70)
+
+print("\nFinal Learned Weights:")
+print(model.weights)
+
+print("\nFinal Learned Bias:")
+print(model.bias)
+
+print("\nFinal Test Performance:")
+print(f"Accuracy  = {accuracy:.4f}")
+print(f"Precision = {precision:.4f}")
+print(f"Recall    = {recall:.4f}")
+print(f"F1-score  = {f1:.4f}")
