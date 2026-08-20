@@ -1,0 +1,379 @@
+!pip install -q tensorflow scikit-learn
+
+import numpy as np
+import matplotlib.pyplot as plt
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+from sklearn.model_selection import ParameterSampler, KFold
+from sklearn.metrics import (accuracy_score, precision_score, recall_score,
+                              f1_score, confusion_matrix, classification_report)
+import time
+
+np.random.seed(42)
+tf.random.set_seed(42)
+
+print("TensorFlow version:", tf.__version__)
+
+# Task 1: Dataset Exploration
+
+(x_train, y_train), (x_test, y_test) = keras.datasets.fashion_mnist.load_data()
+
+class_names = ['T-shirt/top', 'Trouser', 'Pullover', 'Dress', 'Coat',
+               'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle boot']
+
+print("Training images shape:", x_train.shape)
+print("Training labels shape:", y_train.shape)
+print("Testing images shape:", x_test.shape)
+print("Testing labels shape:", y_test.shape)
+print("Number of classes:", len(np.unique(y_train)))
+
+# Display ten sample images
+plt.figure(figsize=(12, 5))
+for i in range(10):
+    plt.subplot(2, 5, i + 1)
+    plt.imshow(x_train[i], cmap='gray')
+    plt.title(class_names[y_train[i]])
+    plt.axis('off')
+plt.suptitle("Sample Images (Task 1 / Mandatory Plot 1)")
+plt.tight_layout()
+plt.savefig('sample_images.png', dpi=150)
+plt.show()
+
+# Plot class distribution
+unique, counts = np.unique(y_train, return_counts=True)
+plt.figure(figsize=(8, 5))
+plt.bar([class_names[u] for u in unique], counts, color='steelblue')
+plt.xticks(rotation=45, ha='right')
+plt.ylabel("Number of Samples")
+plt.title("Class Distribution in Training Set (Mandatory Plot 2)")
+plt.tight_layout()
+plt.savefig('class_distribution.png', dpi=150)
+plt.show()
+
+# Task 2: Data Preprocessing
+
+print("Before preprocessing:")
+print("x_train shape:", x_train.shape, "| dtype:", x_train.dtype)
+print("x_test shape:", x_test.shape)
+
+# Normalize pixel values to [0, 1]
+x_train_norm = x_train.astype('float32') / 255.0
+x_test_norm = x_test.astype('float32') / 255.0
+
+# Flatten 28x28 images into 784-length vectors
+x_train_flat = x_train_norm.reshape(x_train_norm.shape[0], -1)
+x_test_flat = x_test_norm.reshape(x_test_norm.shape[0], -1)
+
+# One-hot encode labels
+y_train_onehot = keras.utils.to_categorical(y_train, 10)
+y_test_onehot = keras.utils.to_categorical(y_test, 10)
+
+print("\nAfter preprocessing:")
+print("x_train_flat shape:", x_train_flat.shape, "| dtype:", x_train_flat.dtype)
+print("x_test_flat shape:", x_test_flat.shape)
+print("y_train_onehot shape:", y_train_onehot.shape)
+print("y_test_onehot shape:", y_test_onehot.shape)
+print("Pixel value range:", x_train_flat.min(), "-", x_train_flat.max())
+
+# Task 3: Model Construction
+
+def build_baseline_model():
+    model = keras.Sequential([
+        layers.Input(shape=(784,)),
+        layers.Dense(128, activation='relu'),
+        layers.Dense(64, activation='relu'),
+        layers.Dense(10, activation='softmax')
+    ])
+    return model
+
+baseline_model = build_baseline_model()
+baseline_model.summary()
+
+# Task 4: Model Training
+
+baseline_model.compile(
+    optimizer='adam',
+    loss='categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+start_time = time.time()
+history = baseline_model.fit(
+    x_train_flat, y_train_onehot,
+    validation_split=0.1,
+    epochs=20,
+    batch_size=32,
+    verbose=1
+)
+baseline_train_time = time.time() - start_time
+print(f"\nBaseline training time: {baseline_train_time:.2f} seconds")
+
+# Task 5: Model Evaluation
+
+y_pred_probs = baseline_model.predict(x_test_flat)
+y_pred = np.argmax(y_pred_probs, axis=1)
+
+baseline_accuracy = accuracy_score(y_test, y_pred)
+baseline_precision = precision_score(y_test, y_pred, average='weighted')
+baseline_recall = recall_score(y_test, y_pred, average='weighted')
+baseline_f1 = f1_score(y_test, y_pred, average='weighted')
+
+print(f"Baseline Test Accuracy:  {baseline_accuracy:.4f}")
+print(f"Baseline Precision:      {baseline_precision:.4f}")
+print(f"Baseline Recall:         {baseline_recall:.4f}")
+print(f"Baseline F1-score:       {baseline_f1:.4f}")
+
+print("\nClassification Report:\n")
+print(classification_report(y_test, y_pred, target_names=class_names))
+
+baseline_cm = confusion_matrix(y_test, y_pred)
+plt.figure(figsize=(8, 7))
+plt.imshow(baseline_cm, cmap='Blues')
+plt.title("Baseline Model Confusion Matrix (Mandatory Plot 7)")
+plt.colorbar()
+tick_marks = np.arange(10)
+plt.xticks(tick_marks, class_names, rotation=45, ha='right')
+plt.yticks(tick_marks, class_names)
+for i in range(10):
+    for j in range(10):
+        plt.text(j, i, baseline_cm[i, j], ha='center', va='center',
+                  color='white' if baseline_cm[i, j] > baseline_cm.max() / 2 else 'black', fontsize=8)
+plt.ylabel('True Label')
+plt.xlabel('Predicted Label')
+plt.tight_layout()
+plt.savefig('baseline_confusion_matrix.png', dpi=150)
+plt.show()
+
+# Training/Validation Accuracy vs Epoch, Training/Validation Loss vs Epoch
+
+epochs_range = range(1, len(history.history['accuracy']) + 1)
+
+plt.figure(figsize=(12, 5))
+
+plt.subplot(1, 2, 1)
+plt.plot(epochs_range, history.history['accuracy'], label='Training Accuracy', marker='o')
+plt.plot(epochs_range, history.history['val_accuracy'], label='Validation Accuracy', marker='s')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.title('Training vs Validation Accuracy (Plots 3 & 4)')
+plt.legend()
+plt.grid(alpha=0.3)
+
+plt.subplot(1, 2, 2)
+plt.plot(epochs_range, history.history['loss'], label='Training Loss', marker='o')
+plt.plot(epochs_range, history.history['val_loss'], label='Validation Loss', marker='s')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.title('Training vs Validation Loss (Plots 5 & 6)')
+plt.legend()
+plt.grid(alpha=0.3)
+
+plt.tight_layout()
+plt.savefig('accuracy_loss_curves.png', dpi=150)
+plt.show()
+
+# Tasks 1-2: Baseline model builder function + hyperparameter search space definition
+
+def build_tunable_model(hidden_layers=2, hidden_neurons=64, learning_rate=0.001,
+                         optimizer_name='adam', activation='relu', dropout_rate=0.0):
+    model = keras.Sequential()
+    model.add(layers.Input(shape=(784,)))
+    for _ in range(hidden_layers):
+        model.add(layers.Dense(hidden_neurons, activation=activation))
+        if dropout_rate > 0:
+            model.add(layers.Dropout(dropout_rate))
+    model.add(layers.Dense(10, activation='softmax'))
+
+    if optimizer_name == 'sgd':
+        opt = keras.optimizers.SGD(learning_rate=learning_rate)
+    elif optimizer_name == 'rmsprop':
+        opt = keras.optimizers.RMSprop(learning_rate=learning_rate)
+    else:
+        opt = keras.optimizers.Adam(learning_rate=learning_rate)
+
+    model.compile(optimizer=opt, loss='categorical_crossentropy', metrics=['accuracy'])
+    return model
+
+param_distributions = {
+    'hidden_layers': [1, 2, 3],
+    'hidden_neurons': [32, 64, 128, 256],
+    'learning_rate': [0.1, 0.01, 0.001],
+    'optimizer_name': ['sgd', 'adam', 'rmsprop'],
+    'activation': ['relu', 'tanh', 'sigmoid'],
+    'dropout_rate': [0.0, 0.2, 0.5],
+    'batch_size': [16, 32, 64, 128],
+    'epochs': [10, 20, 30],
+}
+
+print("Search space defined with", np.prod([len(v) for v in param_distributions.values()]),
+      "possible combinations.")
+
+# Task 3: Perform Randomized Search using 5-fold cross-validation (manual implementation)
+# Use a manageable training subset for search speed in Colab; scale up N_ITER/data as compute allows.
+
+SEARCH_SAMPLE_SIZE = 6000   # subset of training data for the search stage
+N_ITER = 20                  # number of random hyperparameter combinations to try
+N_SPLITS = 5                  # 5-fold cross-validation, as required
+
+rng_np = np.random.default_rng(42)
+sample_idx = rng_np.choice(len(x_train_flat), SEARCH_SAMPLE_SIZE, replace=False)
+x_search = x_train_flat[sample_idx]
+y_search_int = y_train[sample_idx]                       # integer labels for stratified folds
+y_search_onehot = y_train_onehot[sample_idx]              # one-hot labels for training
+
+sampled_params = list(ParameterSampler(param_distributions, n_iter=N_ITER, random_state=42))
+kf = KFold(n_splits=N_SPLITS, shuffle=True, random_state=42)
+
+search_results = []  # list of dicts: {params, mean_cv_accuracy}
+
+search_start = time.time()
+for i, params in enumerate(sampled_params):
+    fold_accuracies = []
+    for fold_i, (train_idx, val_idx) in enumerate(kf.split(x_search)):
+        model = build_tunable_model(
+            hidden_layers=params['hidden_layers'],
+            hidden_neurons=params['hidden_neurons'],
+            learning_rate=params['learning_rate'],
+            optimizer_name=params['optimizer_name'],
+            activation=params['activation'],
+            dropout_rate=params['dropout_rate'],
+        )
+        model.fit(
+            x_search[train_idx], y_search_onehot[train_idx],
+            epochs=params['epochs'],
+            batch_size=params['batch_size'],
+            verbose=0
+        )
+        val_preds = np.argmax(model.predict(x_search[val_idx], verbose=0), axis=1)
+        fold_acc = accuracy_score(y_search_int[val_idx], val_preds)
+        fold_accuracies.append(fold_acc)
+
+    mean_acc = float(np.mean(fold_accuracies))
+    search_results.append({'params': params, 'mean_cv_accuracy': mean_acc})
+    print(f"[{i + 1}/{N_ITER}] mean CV accuracy: {mean_acc:.4f} | params: {params}")
+
+search_time = time.time() - search_start
+print(f"\nHyperparameter search completed in {search_time:.2f} seconds")
+
+# Task 4: Record the best hyperparameter combination
+
+best_result = max(search_results, key=lambda r: r['mean_cv_accuracy'])
+best_params = best_result['params']
+best_cv_score = best_result['mean_cv_accuracy']
+
+print("Best hyperparameters found:")
+for k, v in best_params.items():
+    print(f"  {k}: {v}")
+print(f"\nBest cross-validation accuracy: {best_cv_score:.4f}")
+# Task 5: Retrain the model using the optimized hyperparameters on the FULL training set
+
+optimized_model = build_tunable_model(
+    hidden_layers=best_params['hidden_layers'],
+    hidden_neurons=best_params['hidden_neurons'],
+    learning_rate=best_params['learning_rate'],
+    optimizer_name=best_params['optimizer_name'],
+    activation=best_params['activation'],
+    dropout_rate=best_params['dropout_rate'],
+)
+
+optimized_start = time.time()
+optimized_history = optimized_model.fit(
+    x_train_flat, y_train_onehot,
+    validation_split=0.1,
+    epochs=best_params['epochs'],
+    batch_size=best_params['batch_size'],
+    verbose=1
+)
+optimized_train_time = time.time() - optimized_start
+print(f"\nOptimized model training time: {optimized_train_time:.2f} seconds")
+# Task 6: Evaluate the optimized model on the testing dataset
+
+y_pred_opt_probs = optimized_model.predict(x_test_flat)
+y_pred_opt = np.argmax(y_pred_opt_probs, axis=1)
+
+optimized_accuracy = accuracy_score(y_test, y_pred_opt)
+optimized_precision = precision_score(y_test, y_pred_opt, average='weighted')
+optimized_recall = recall_score(y_test, y_pred_opt, average='weighted')
+optimized_f1 = f1_score(y_test, y_pred_opt, average='weighted')
+
+print(f"Optimized Test Accuracy:  {optimized_accuracy:.4f}")
+print(f"Optimized Precision:      {optimized_precision:.4f}")
+print(f"Optimized Recall:         {optimized_recall:.4f}")
+print(f"Optimized F1-score:       {optimized_f1:.4f}")
+
+print("\nClassification Report (Optimized Model):\n")
+print(classification_report(y_test, y_pred_opt, target_names=class_names))
+
+optimized_cm = confusion_matrix(y_test, y_pred_opt)
+plt.figure(figsize=(8, 7))
+plt.imshow(optimized_cm, cmap='Greens')
+plt.title("Optimized Model Confusion Matrix")
+plt.colorbar()
+plt.xticks(tick_marks, class_names, rotation=45, ha='right')
+plt.yticks(tick_marks, class_names)
+for i in range(10):
+    for j in range(10):
+        plt.text(j, i, optimized_cm[i, j], ha='center', va='center',
+                  color='white' if optimized_cm[i, j] > optimized_cm.max() / 2 else 'black', fontsize=8)
+plt.ylabel('True Label')
+plt.xlabel('Predicted Label')
+plt.tight_layout()
+plt.savefig('optimized_confusion_matrix.png', dpi=150)
+plt.show()
+# Task 7: Compare the optimized model with the baseline model (Mandatory Plots 8 & 9)
+
+# Plot 8: Hyperparameter Search Results (CV accuracy per sampled combination)
+mean_test_scores = [r['mean_cv_accuracy'] for r in search_results]
+
+plt.figure(figsize=(9, 5))
+plt.plot(range(1, len(mean_test_scores) + 1), sorted(mean_test_scores), marker='o')
+plt.xlabel('Search Iteration (sorted)')
+plt.ylabel('Mean CV Accuracy')
+plt.title('Hyperparameter Search Results (Mandatory Plot 8)')
+plt.grid(alpha=0.3)
+plt.tight_layout()
+plt.savefig('hyperparameter_search_results.png', dpi=150)
+plt.show()
+
+# Plot 9: Best Model Accuracy Comparison (baseline vs optimized)
+labels = ['Baseline', 'Optimized']
+accuracies = [baseline_accuracy, optimized_accuracy]
+
+plt.figure(figsize=(6, 5))
+bars = plt.bar(labels, accuracies, color=['steelblue', 'seagreen'])
+plt.ylabel('Test Accuracy')
+plt.ylim(0, 1)
+plt.title('Best Model Accuracy Comparison (Mandatory Plot 9)')
+for bar, acc in zip(bars, accuracies):
+    plt.text(bar.get_x() + bar.get_width() / 2, acc + 0.01, f'{acc:.4f}', ha='center')
+plt.tight_layout()
+plt.savefig('accuracy_comparison.png', dpi=150)
+plt.show()
+# Results tables
+
+print("Best Hyperparameters")
+print("-" * 40)
+result_table = {
+    "Hidden Layers": best_params['hidden_layers'],
+    "Hidden Neurons": best_params['hidden_neurons'],
+    "Learning Rate": best_params['learning_rate'],
+    "Batch Size": best_params['batch_size'],
+    "Optimizer": best_params['optimizer_name'],
+    "Activation Function": best_params['activation'],
+    "Epochs": best_params['epochs'],
+    "Dropout": best_params['dropout_rate'],
+    "Cross-validation Accuracy": round(best_cv_score, 4),
+    "Testing Accuracy": round(optimized_accuracy, 4),
+}
+for k, v in result_table.items():
+    print(f"{k:28s}: {v}")
+
+print("\nPerformance Comparison")
+print("-" * 60)
+print(f"{'Metric':15s}{'Baseline':>15s}{'Optimized':>15s}")
+print(f"{'Accuracy':15s}{baseline_accuracy:15.4f}{optimized_accuracy:15.4f}")
+print(f"{'Precision':15s}{baseline_precision:15.4f}{optimized_precision:15.4f}")
+print(f"{'Recall':15s}{baseline_recall:15.4f}{optimized_recall:15.4f}")
+print(f"{'F1-score':15s}{baseline_f1:15.4f}{optimized_f1:15.4f}")
+print(f"{'Training Time(s)':15s}{baseline_train_time:15.2f}{optimized_train_time:15.2f}")
