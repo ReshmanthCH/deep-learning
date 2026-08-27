@@ -1,4 +1,4 @@
-# requirements.txt
+# requirements
 
 torch==2.11.0
 torchvision==0.26.0
